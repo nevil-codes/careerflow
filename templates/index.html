@@ -34,11 +34,6 @@
         .update-form select { padding: 4px 8px; font-size: 12px; border: 1px solid #ddd; border-radius: 4px; }
         .update-form button { padding: 4px 10px; font-size: 12px; }
         textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; resize: vertical; min-height: 80px; font-family: inherit; }
-        #score-result { margin-top: 15px; display: none; }
-        #score-result.show { display: block; }
-        .score-value { font-size: 48px; font-weight: 700; text-align: center; }
-        .score-label { text-align: center; color: #666; margin-top: 5px; }
-        .skill-tag { display: inline-block; background: #ebf5fb; color: #2980b9; padding: 3px 8px; border-radius: 4px; font-size: 12px; margin: 2px; }
         .empty-state { text-align: center; padding: 40px; color: #999; }
     </style>
 </head>
@@ -98,39 +93,6 @@
             <div class="empty-state"><p>No applications yet. Add your first one above!</p></div>
             {% endif %}
         </div>
-
-        <!-- AI Score -->
-        <div class="card">
-            <h2>Job Match Score</h2>
-            <p style="color:#666;margin-bottom:10px;">Paste a job description to see how well it matches your skills.</p>
-            <form id="score-form">
-                <textarea id="description" placeholder="Paste job description here..."></textarea>
-                <button type="submit" class="btn btn-primary" style="margin-top:10px;">Calculate Score</button>
-            </form>
-            <div id="score-result">
-                <div class="score-value" id="score-value">0</div>
-                <div class="score-label">Match Score (out of 100)</div>
-                <div id="matched-skills" style="margin-top:10px;"></div>
-            </div>
-        </div>
     </div>
-
-    <script>
-        document.getElementById("score-form").addEventListener("submit", async function(e) {
-            e.preventDefault();
-            const fd = new FormData();
-            fd.append("description", document.getElementById("description").value);
-            const res = await fetch("/score", { method: "POST", body: fd });
-            const data = await res.json();
-            const el = document.getElementById("score-value");
-            el.textContent = data.score;
-            el.style.color = data.score >= 70 ? "#27ae60" : data.score >= 40 ? "#f39c12" : "#e74c3c";
-            const sk = document.getElementById("matched-skills");
-            sk.innerHTML = data.matched.length
-                ? "<strong>Matched:</strong> " + data.matched.map(s => '<span class="skill-tag">' + s + '</span>').join(" ")
-                : "<p style='color:#999'>No matching skills found.</p>";
-            document.getElementById("score-result").classList.add("show");
-        });
-    </script>
 </body>
 </html>
