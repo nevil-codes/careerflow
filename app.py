@@ -1,9 +1,18 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, jsonify
 
 app = Flask(__name__)
 
 jobs = []
 next_id = 1
+
+KEYWORDS = ["python", "java", "docker", "aws", "sql", "flask"]
+
+
+def compute_job_score(text):
+    """Return a match score 0-100 based on keyword hits."""
+    text_lower = text.lower()
+    matches = [kw for kw in KEYWORDS if kw in text_lower]
+    return min(int((len(matches) / len(KEYWORDS)) * 100), 100), matches
 
 
 @app.route("/")
@@ -38,6 +47,15 @@ def update_job(job_id):
             job["status"] = new_status
             break
     return redirect(url_for("dashboard"))
+
+
+@app.route("/score", methods=["POST"])
+def score():
+    description = request.form.get("description", "")
+    if not description.strip():
+        return jsonify({"score": 0, "matched": []})
+    value, matched = compute_job_score(description)
+    return jsonify({"score": value, "matched": matched})
 
 
 if __name__ == "__main__":
