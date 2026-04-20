@@ -1,6 +1,8 @@
 # CareerFlow
 
-A Dockerized job application tracker with a simple AI-based job match scoring feature built with Flask.
+A Dockerized full-stack web application that helps users track job applications and provides a simple AI-based job match score. Built with Flask and designed to be minimal, functional, and easy to run locally with Docker.
+
+> "I built a Dockerized job tracking system with a simple AI-based job matching feature using Flask. The system supports CRUD operations and is fully containerized for consistent deployment."
 
 ## Features
 
@@ -21,12 +23,13 @@ A Dockerized job application tracker with a simple AI-based job match scoring fe
 
 ```
 CareerFlow/
-├── app.py              # Flask backend
+├── app.py              # Flask backend with all routes
 ├── requirements.txt    # Python dependencies
-├── Dockerfile          # Container config
-├── README.md
+├── Dockerfile          # Container configuration
+├── .dockerignore       # Files excluded from Docker build
+├── README.md           # Project documentation
 └── templates/
-    └── index.html      # Dashboard UI
+    └── index.html      # Dashboard UI (Jinja2 template)
 ```
 
 ## Run Locally
