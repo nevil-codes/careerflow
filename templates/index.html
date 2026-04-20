@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CareerFlow</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f7fa; color: #333; padding: 20px; }
+        .container { max-width: 900px; margin: 0 auto; }
+        h1 { text-align: center; margin-bottom: 30px; color: #2c3e50; }
+        h2 { margin: 20px 0 10px; color: #34495e; }
+        .card { background: #fff; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .form-row { display: flex; gap: 10px; flex-wrap: wrap; }
+        .form-row input, .form-row select { padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+        .form-row input { flex: 1; min-width: 150px; }
+        button, .btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; text-decoration: none; display: inline-block; }
+        .btn-primary { background: #3498db; color: #fff; }
+        .btn-primary:hover { background: #2980b9; }
+        .btn-danger { background: #e74c3c; color: #fff; }
+        .btn-danger:hover { background: #c0392b; }
+        .btn-success { background: #27ae60; color: #fff; }
+        .btn-success:hover { background: #219a52; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background: #f8f9fa; font-weight: 600; }
+        tr:hover { background: #f8f9fa; }
+        .badge { padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+        .badge-applied { background: #ebf5fb; color: #2980b9; }
+        .badge-interview { background: #fef9e7; color: #f39c12; }
+        .badge-rejected { background: #fdedec; color: #e74c3c; }
+        .badge-offer { background: #eafaf1; color: #27ae60; }
+        .update-form { display: inline-flex; gap: 5px; align-items: center; }
+        .update-form select { padding: 4px 8px; font-size: 12px; border: 1px solid #ddd; border-radius: 4px; }
+        .update-form button { padding: 4px 10px; font-size: 12px; }
+        textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; resize: vertical; min-height: 80px; font-family: inherit; }
+        #score-result { margin-top: 15px; display: none; }
+        #score-result.show { display: block; }
+        .score-value { font-size: 48px; font-weight: 700; text-align: center; }
+        .score-label { text-align: center; color: #666; margin-top: 5px; }
+        .skill-tag { display: inline-block; background: #ebf5fb; color: #2980b9; padding: 3px 8px; border-radius: 4px; font-size: 12px; margin: 2px; }
+        .empty-state { text-align: center; padding: 40px; color: #999; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>CareerFlow</h1>
+
+        <!-- Add Job -->
+        <div class="card">
+            <h2>Add Job Application</h2>
+            <form action="/add" method="POST">
+                <div class="form-row">
+                    <input type="text" name="company" placeholder="Company Name" required>
+                    <input type="text" name="role" placeholder="Role / Title" required>
+                    <select name="status">
+                        <option value="Applied">Applied</option>
+                        <option value="Interview">Interview</option>
+                        <option value="Rejected">Rejected</option>
+                        <option value="Offer">Offer</option>
+                    </select>
+                    <button type="submit" class="btn btn-primary">Add</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Jobs Table -->
+        <div class="card">
+            <h2>Applications ({{ jobs|length }})</h2>
+            {% if jobs %}
+            <table>
+                <thead>
+                    <tr><th>Company</th><th>Role</th><th>Status</th><th>Actions</th></tr>
+                </thead>
+                <tbody>
+                    {% for job in jobs %}
+                    <tr>
+                        <td>{{ job.company }}</td>
+                        <td>{{ job.role }}</td>
+                        <td><span class="badge badge-{{ job.status|lower }}">{{ job.status }}</span></td>
+                        <td>
+                            <form class="update-form" action="/update/{{ job.id }}" method="POST">
+                                <select name="status">
+                                    <option value="Applied" {% if job.status == 'Applied' %}selected{% endif %}>Applied</option>
+                                    <option value="Interview" {% if job.status == 'Interview' %}selected{% endif %}>Interview</option>
+                                    <option value="Rejected" {% if job.status == 'Rejected' %}selected{% endif %}>Rejected</option>
+                                    <option value="Offer" {% if job.status == 'Offer' %}selected{% endif %}>Offer</option>
+                                </select>
+                                <button type="submit" class="btn btn-success">Update</button>
+                            </form>
+                            <a href="/delete/{{ job.id }}" class="btn btn-danger" style="margin-left:5px;">Delete</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty-state"><p>No applications yet. Add your first one above!</p></div>
+            {% endif %}
+        </div>
+
+        <!-- AI Score -->
+        <div class="card">
+            <h2>Job Match Score</h2>
+            <p style="color:#666;margin-bottom:10px;">Paste a job description to see how well it matches your skills.</p>
+            <form id="score-form">
+                <textarea id="description" placeholder="Paste job description here..."></textarea>
+                <button type="submit" class="btn btn-primary" style="margin-top:10px;">Calculate Score</button>
+            </form>
+            <div id="score-result">
+                <div class="score-value" id="score-value">0</div>
+                <div class="score-label">Match Score (out of 100)</div>
+                <div id="matched-skills" style="margin-top:10px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById("score-form").addEventListener("submit", async function(e) {
+            e.preventDefault();
+            const fd = new FormData();
+            fd.append("description", document.getElementById("description").value);
+            const res = await fetch("/score", { method: "POST", body: fd });
+            const data = await res.json();
+            const el = document.getElementById("score-value");
+            el.textContent = data.score;
+            el.style.color = data.score >= 70 ? "#27ae60" : data.score >= 40 ? "#f39c12" : "#e74c3c";
+            const sk = document.getElementById("matched-skills");
+            sk.innerHTML = data.matched.length
+                ? "<strong>Matched:</strong> " + data.matched.map(s => '<span class="skill-tag">' + s + '</span>').join(" ")
+                : "<p style='color:#999'>No matching skills found.</p>";
+            document.getElementById("score-result").classList.add("show");
+        });
+    </script>
+</body>
+</html>
