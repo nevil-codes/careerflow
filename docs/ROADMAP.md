@@ -26,7 +26,7 @@ Monorepo, models and migrations, profile seed with status and German-level guard
 - [ ] Add the real `candidate_context.md` and seed it.
 - [ ] Run `docker compose up` on a machine with Docker.
 - [x] Commit Phase 0.
-- [ ] Push and open PR (GitHub remote `nevil-codes/CareerFlow` no longer exists; needs a new repo).
+- [x] Push to github.com/nevil-codes/careerflow, open PRs #1 (Phase 0) and #2 (Phase 1).
 
 ### Phase 1: Job tracker (no LLM) (done)
 - Postings: create from pasted text, list, view, edit, delete.
