@@ -30,8 +30,13 @@ def generate_structured[T: BaseModel](
     messages: list[ChatMessage],
     *,
     max_attempts: int = 3,
+    context: dict | None = None,
 ) -> StructuredResult[T]:
-    """Validated output or ``StructuredOutputError``. Connection errors are not retried."""
+    """Validated output or ``StructuredOutputError``. Connection errors are not retried.
+
+    ``context`` is passed to Pydantic validators (e.g. the source text, so a model can
+    reject values that don't appear in it); their errors are fed back on retry.
+    """
     schema = output_model.model_json_schema()
     conversation = list(messages)
     raw = ""
@@ -39,7 +44,8 @@ def generate_structured[T: BaseModel](
     for attempt in range(1, max_attempts + 1):
         raw = provider.chat(conversation, json_schema=schema)
         try:
-            return StructuredResult(output_model.model_validate_json(_unfence(raw)), attempt, raw)
+            value = output_model.model_validate_json(_unfence(raw), context=context)
+            return StructuredResult(value, attempt, raw)
         except ValidationError as exc:
             error = _summarize(exc)
             conversation += [

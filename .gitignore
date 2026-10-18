@@ -13,3 +13,6 @@ node_modules/
 frontend/dist/
 
 .DS_Store
+
+# Personal Claude Code settings
+.claude/settings.local.json

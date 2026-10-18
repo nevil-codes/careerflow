@@ -1,10 +1,10 @@
 import { useState } from "react";
 
-import { createPosting, listPostings } from "../api";
-import PostingForm from "../components/PostingForm";
+import { listPostings } from "../api";
+import PastePostingForm from "../components/PastePostingForm";
 import { AppStatusBadge, Button, Card, ErrorBox, inputClass } from "../components/ui";
 import { formatDate } from "../format";
-import { href, navigate } from "../router";
+import { href } from "../router";
 import { useAsync } from "../useAsync";
 
 export default function PostingsPage() {
@@ -25,14 +25,7 @@ export default function PostingsPage() {
 
       {adding && (
         <Card className="mb-6">
-          <PostingForm
-            submitLabel="Save posting"
-            onSubmit={async (data) => {
-              const posting = await createPosting(data);
-              navigate(`/postings/${posting.id}`);
-            }}
-            onCancel={() => setAdding(false)}
-          />
+          <PastePostingForm onCancel={() => setAdding(false)} />
         </Card>
       )}
 
@@ -46,7 +39,7 @@ export default function PostingsPage() {
       {state.kind === "loading" && <p className="text-slate-500">Loading…</p>}
       {state.kind === "error" && <ErrorBox message={state.message} />}
       {state.kind === "ready" && state.data.length === 0 && (
-        <p className="text-slate-500">{query ? "No matches." : "No postings yet. Paste your first one."}</p>
+        <p className="text-slate-500">{query ? "No matches." : "No postings yet. Click \"New posting\" and paste a job description."}</p>
       )}
       {state.kind === "ready" && (
         <ul className="space-y-2">
