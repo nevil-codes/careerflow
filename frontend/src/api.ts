@@ -6,6 +6,8 @@ import type {
   PostingInput,
   Profile,
   ProfileItem,
+  ProviderConfig,
+  ProviderTestResult,
   Task,
   TaskStatus,
 } from "./types";
@@ -60,3 +62,16 @@ export const createTask = (data: { title: string; due_at?: string | null; applic
 export const updateTask = (id: number, data: { title?: string; status?: TaskStatus; due_at?: string | null }) =>
   request<Task>("PATCH", `/tasks/${id}`, data);
 export const deleteTask = (id: number) => request<void>("DELETE", `/tasks/${id}`);
+
+export const listProviders = () => request<ProviderConfig[]>("GET", "/providers");
+export const getProviderDefaults = () =>
+  request<{ base_urls: Record<string, string> }>("GET", "/providers/defaults");
+export const createProvider = (data: { name: string; base_url?: string | null; enabled?: boolean }) =>
+  request<ProviderConfig>("POST", "/providers", data);
+export const updateProvider = (
+  id: number,
+  data: { name?: string; model?: string | null; base_url?: string; enabled?: boolean },
+) => request<ProviderConfig>("PATCH", `/providers/${id}`, data);
+export const deleteProvider = (id: number) => request<void>("DELETE", `/providers/${id}`);
+export const listProviderModels = (id: number) => request<string[]>("GET", `/providers/${id}/models`);
+export const testProvider = (id: number) => request<ProviderTestResult>("POST", `/providers/${id}/test`);

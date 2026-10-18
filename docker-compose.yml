@@ -5,6 +5,10 @@ services:
       - "8000:8000"
     environment:
       CAREERFLOW_CONTEXT_FILE: /context/candidate_context.md
+      # Ollama running on the host machine. Use http://ollama:11434 if you enable the service below.
+      CAREERFLOW_OLLAMA_URL: http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # makes the name work on Linux too
     volumes:
       - ./backend:/app                 # live code + SQLite DB in backend/data/
       - ./:/context:ro                 # read-only access to candidate_context.md
@@ -22,7 +26,7 @@ services:
     depends_on:
       - backend
 
-  # Local LLMs arrive in a later phase. Uncomment to run Ollama alongside.
+  # Optional: run Ollama in Docker instead of on the host (CPU-only on macOS; GPU needs extra config).
   # ollama:
   #   image: ollama/ollama
   #   ports:

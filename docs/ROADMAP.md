@@ -36,7 +36,7 @@ Monorepo, models and migrations, profile seed with status and German-level guard
 
 **Done when:** the real job hunt can be tracked end to end by hand.
 
-### Phase 2: LLM provider layer
+### Phase 2: LLM provider layer (done)
 - Provider interface; Ollama first.
 - `ProviderConfig` stores model and URL only. Keys in env or OS keychain, never in the DB.
 - Structured JSON output validated against Pydantic schemas, with retries.
