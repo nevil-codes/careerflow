@@ -2,7 +2,7 @@
 
 Local job-application copilot. Runs entirely on your machine.
 
-**Current state (Phase 2):** profile import from `candidate_context.md`, a manual job tracker (postings, applications with full status history, follow-up tasks), and a local LLM provider layer (Ollama) with validated structured output. No AI features use it yet; audits come in Phase 3. No API keys, no Notion/Excel sync yet. See [docs/ROADMAP.md](docs/ROADMAP.md).
+**Current state (Phase 2):** profile import from `candidate_context.md`, a manual job tracker (postings, applications with full status history, follow-up tasks), and a local LLM provider layer (Ollama) with validated structured output. Adding a posting is paste-only: the local model fills in title, company, location and language. No API keys, no Notion/Excel sync yet. See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 | Layer    | Stack                                             |
 |----------|---------------------------------------------------|
@@ -69,7 +69,7 @@ npm run dev
 
 Open http://localhost:5173. Pages: Postings, Applications (board), Tasks, Profile, Settings. Vite proxies `/api/*` to the backend (override with `API_PROXY_TARGET`).
 
-### 4. Local LLM (optional until Phase 3)
+### 4. Local LLM (needed to add postings by paste)
 
 ```bash
 # install from https://ollama.com, then:
@@ -78,6 +78,8 @@ ollama pull qwen3:8b         # or any model; gpt-oss:20b also works
 ```
 
 In the app, open **Settings**, add the provider (defaults to `http://localhost:11434`), pick a model, and click **Test provider**. It sends a small request that must come back as JSON matching a schema. Only one provider is active at a time.
+
+**Adding a posting:** on **Postings**, click **New posting** and paste the whole job description. The active model extracts the title, company, location, language and URL, and the text is saved unchanged. The title, company and URL must appear in the pasted text, so a made-up value is rejected and the model is asked again. If extraction fails, nothing is saved and you can enter the details by hand instead. **Edit** on a posting always works without a model.
 
 ### Docker (alternative)
 
@@ -131,6 +133,7 @@ Full interactive docs at http://localhost:8000/docs.
 | GET | `/profile` | 404 until seeded |
 | GET | `/profile/items?type=` | `type`: `education`, `job`, `project`, `course`, `skill` |
 | GET, POST | `/postings` | `?q=` searches title and company |
+| POST | `/postings/from-text` | `{"description": "..."}`: extract fields with the active LLM, then save. 409 if no provider is enabled, 503 if unreachable, 502 if extraction fails |
 | GET, PATCH, DELETE | `/postings/{id}` | DELETE also removes its application, history and tasks |
 | GET, POST | `/applications` | One per posting (409 on a second). `?status=` filter |
 | GET, PATCH, DELETE | `/applications/{id}` | GET includes `events` (history) and `tasks` |

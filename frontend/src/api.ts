@@ -75,3 +75,5 @@ export const updateProvider = (
 export const deleteProvider = (id: number) => request<void>("DELETE", `/providers/${id}`);
 export const listProviderModels = (id: number) => request<string[]>("GET", `/providers/${id}/models`);
 export const testProvider = (id: number) => request<ProviderTestResult>("POST", `/providers/${id}/test`);
+export const createPostingFromText = (description: string) =>
+  request<Posting>("POST", "/postings/from-text", { description });

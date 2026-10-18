@@ -1,8 +1,11 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from sqlmodel import col, select
 
 from app.api.deps import SessionDep, get_or_404
-from app.models import Posting, PostingCreate, PostingRead, PostingUpdate, utcnow
+from app.llm.base import ProviderError, ProviderUnavailable
+from app.llm.extract_posting import extract_posting
+from app.llm.registry import NoProviderEnabled, get_active_provider
+from app.models import Posting, PostingCreate, PostingFromText, PostingRead, PostingUpdate, utcnow
 
 router = APIRouter(prefix="/postings", tags=["postings"])
 
@@ -30,6 +33,28 @@ def list_postings(session: SessionDep, q: str | None = None) -> list[PostingRead
 @router.post("", response_model=PostingRead, status_code=201)
 def create_posting(data: PostingCreate, session: SessionDep) -> PostingRead:
     posting = Posting.model_validate(data)
+    session.add(posting)
+    session.commit()
+    session.refresh(posting)
+    return to_read(posting)
+
+
+@router.post("/from-text", response_model=PostingRead, status_code=201)
+def create_posting_from_text(data: PostingFromText, session: SessionDep) -> PostingRead:
+    """Extract title, company, etc. with the active LLM, then save. Nothing is saved on failure."""
+    try:
+        _config, provider = get_active_provider(session)
+        extracted = extract_posting(provider, data.description)
+    except NoProviderEnabled as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except ProviderUnavailable as exc:
+        raise HTTPException(503, str(exc)) from exc
+    except ProviderError as exc:
+        raise HTTPException(502, f"Could not read the posting: {exc}") from exc
+
+    posting = Posting.model_validate(
+        extracted.model_dump() | {"description": data.description, "source": "pasted"}
+    )
     session.add(posting)
     session.commit()
     session.refresh(posting)

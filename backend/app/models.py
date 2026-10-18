@@ -201,6 +201,20 @@ class PostingUpdate(SQLModel):
     _required = field_validator("title", "company")(_not_null)
 
 
+class PostingFromText(SQLModel):
+    """Paste-only intake: everything else is extracted from the text."""
+
+    description: str
+
+    @field_validator("description")
+    @classmethod
+    def _long_enough(cls, value: str) -> str:
+        # Stored verbatim; only checked for substance.
+        if len(value.strip()) < 40:
+            raise ValueError("paste the full job description")
+        return value
+
+
 class PostingRead(PostingBase):
     id: int
     created_at: datetime
