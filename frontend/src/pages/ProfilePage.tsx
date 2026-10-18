@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { getProfile, getProfileItems } from "../api";
 import ItemCard from "../components/ItemCard";
+import { ErrorBox } from "../components/ui";
 import type { ItemType, Profile, ProfileItem } from "../types";
 
 const SECTIONS: { type: ItemType; title: string }[] = [
@@ -26,17 +27,11 @@ export default function ProfilePage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-      <main className="mx-auto max-w-3xl px-4 py-10">
-        {state.kind === "loading" && <p className="text-slate-500">Loading profile…</p>}
-        {state.kind === "error" && (
-          <div className="rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
-            Could not load profile: {state.message}
-          </div>
-        )}
-        {state.kind === "ready" && <ProfileView profile={state.profile} items={state.items} />}
-      </main>
-    </div>
+    <>
+      {state.kind === "loading" && <p className="text-slate-500">Loading profile…</p>}
+      {state.kind === "error" && <ErrorBox message={`Could not load profile: ${state.message}`} />}
+      {state.kind === "ready" && <ProfileView profile={state.profile} items={state.items} />}
+    </>
   );
 }
 
