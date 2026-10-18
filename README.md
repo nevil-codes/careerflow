@@ -2,7 +2,7 @@
 
 Local job-application copilot. Runs entirely on your machine.
 
-**Phase 0 (Foundations):** data model, profile import from `candidate_context.md`, read-only profile API, and a Profile page. No LLM calls, API keys, audits, or Notion/Excel sync yet.
+**Current state (Phase 1):** profile import from `candidate_context.md`, plus a manual job tracker: paste postings, track applications through their statuses with full history, and keep follow-up tasks. No LLM calls, API keys, audits, or Notion/Excel sync yet. See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 | Layer    | Stack                                             |
 |----------|---------------------------------------------------|
@@ -16,12 +16,12 @@ Local job-application copilot. Runs entirely on your machine.
 │   ├── app/
 │   │   ├── main.py            FastAPI app
 │   │   ├── models.py          SQLModel tables + shared Pydantic schemas
-│   │   ├── api/profile.py     GET /profile, GET /profile/items
+│   │   ├── api/               profile, postings, applications, tasks routers
 │   │   └── seed/              candidate_context.md parser + importer (python -m app.seed)
 │   ├── alembic/               migrations
 │   ├── data/                  SQLite DB (git-ignored)
 │   └── tests/
-├── frontend/                  Vite + React Profile page
+├── frontend/                  Vite + React UI (postings, application board, tasks, profile)
 ├── candidate_context.example.md
 └── docker-compose.yml
 ```
@@ -66,7 +66,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:5173. Vite proxies `/api/*` to the backend (override with `API_PROXY_TARGET`).
+Open http://localhost:5173. Pages: Postings, Applications (board), Tasks, Profile. Vite proxies `/api/*` to the backend (override with `API_PROXY_TARGET`).
 
 ### Docker (alternative)
 
@@ -85,7 +85,9 @@ cd backend && uv run pytest
 cd frontend && npm run typecheck
 ```
 
-The backend tests cover the parser, the seed (including idempotency and integrity guards), both endpoints, and a check that Alembic migrations match the models.
+The backend tests cover the parser, the seed (including idempotency and integrity guards), every endpoint, application status history, and checks that Alembic migrations match the models and upgrade existing data.
+
+After pulling new code, run `uv run alembic upgrade head` again to apply new migrations.
 
 ## Data integrity rules
 
@@ -95,6 +97,7 @@ The backend tests cover the parser, the seed (including idempotency and integrit
 - **In-progress items cannot become completed** except by changing the file and re-seeding. Any other code path that tries raises `LockedFieldError` on flush.
 - **German level is locked.** It is stored verbatim from the file. Changing it outside the seed raises `LockedFieldError`.
 - After every seed, stored statuses and German level are re-read and compared against the file, and any mismatch fails the seed.
+- **Application history is append-only and automatic.** Every status change, from any code path, is written to `application_event` by an ORM flush hook. Statuses can move freely (e.g. rejected back to interviewing), but nothing changes silently. `applied_at` is set the first time an application leaves `draft` and can be backdated.
 
 ## Configuration
 
@@ -106,7 +109,15 @@ The backend tests cover the parser, the seed (including idempotency and integrit
 
 ## API
 
-| Method | Path                          | Returns                                  |
-|--------|-------------------------------|------------------------------------------|
-| GET    | `/profile`                    | Profile (404 until seeded)               |
-| GET    | `/profile/items?type=project` | Items, optionally filtered by `type`: `education`, `job`, `project`, `course`, `skill` |
+Full interactive docs at http://localhost:8000/docs.
+
+| Method | Path | Notes |
+|--------|------|-------|
+| GET | `/profile` | 404 until seeded |
+| GET | `/profile/items?type=` | `type`: `education`, `job`, `project`, `course`, `skill` |
+| GET, POST | `/postings` | `?q=` searches title and company |
+| GET, PATCH, DELETE | `/postings/{id}` | DELETE also removes its application, history and tasks |
+| GET, POST | `/applications` | One per posting (409 on a second). `?status=` filter |
+| GET, PATCH, DELETE | `/applications/{id}` | GET includes `events` (history) and `tasks` |
+| GET, POST | `/tasks` | `?application_id=`, `?status=`, `?open=true`; sorted by due date |
+| PATCH, DELETE | `/tasks/{id}` | |

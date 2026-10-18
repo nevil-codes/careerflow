@@ -25,9 +25,10 @@ Monorepo, models and migrations, profile seed with status and German-level guard
 ### Phase 0.5: Close out
 - [ ] Add the real `candidate_context.md` and seed it.
 - [ ] Run `docker compose up` on a machine with Docker.
-- [x] Commit, push `rebuild/phase-0`, open PR.
+- [x] Commit Phase 0.
+- [ ] Push and open PR (GitHub remote `nevil-codes/CareerFlow` no longer exists; needs a new repo).
 
-### Phase 1: Job tracker (no LLM)
+### Phase 1: Job tracker (no LLM) (done)
 - Postings: create from pasted text, list, view, edit, delete.
 - Applications: status pipeline draft → applied → interviewing → offer / rejected / withdrawn, with timestamps.
 - Tasks attached to applications (e.g. follow-ups with due dates).

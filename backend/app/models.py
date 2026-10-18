@@ -8,21 +8,26 @@ are the API response schemas.
 from datetime import UTC, datetime
 from enum import StrEnum
 
+from pydantic import field_validator
 from sqlalchemy import JSON, Text, UniqueConstraint, event, inspect
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Session as SASession
-from sqlmodel import Field, SQLModel
+from sqlmodel import Field, Relationship, SQLModel
 
 
 def utcnow() -> datetime:
     return datetime.now(UTC)
 
 
-def enum_type(enum_cls: type[StrEnum]) -> SAEnum:
-    """Store enum *values* as VARCHAR with a CHECK constraint (portable, readable)."""
+def enum_type(enum_cls: type[StrEnum], name: str | None = None) -> SAEnum:
+    """Store enum *values* as VARCHAR with a CHECK constraint (portable, readable).
+
+    ``name`` names the CHECK constraint; pass one when a table has two columns of
+    the same enum so the constraint names don't collide.
+    """
     return SAEnum(
         enum_cls,
-        name=enum_cls.__name__.lower(),
+        name=name or enum_cls.__name__.lower(),
         native_enum=False,
         create_constraint=True,
         length=32,
@@ -119,20 +124,94 @@ class ProfileItemRead(ProfileItemBase):
     id: int
 
 
-# --- Job search (schema only in Phase 0) -----------------------------------
+# --- Input validation helpers ---------------------------------------------
 
 
-class Posting(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
+def _strip_or_none(value: object) -> object:
+    """Trim strings; blank optional strings become None."""
+    if isinstance(value, str):
+        value = value.strip()
+        return value or None
+    return value
+
+
+def _not_null(value: object) -> object:
+    """For PATCH schemas: a required field may be omitted but not cleared."""
+    if value is None:
+        raise ValueError("cannot be blank")
+    return value
+
+
+def _check_url(value: str | None) -> str | None:
+    if value is not None and not value.startswith(("http://", "https://")):
+        raise ValueError("must start with http:// or https://")
+    return value
+
+
+# --- Postings --------------------------------------------------------------
+
+
+class PostingBase(SQLModel):
     title: str
     company: str
     location: str | None = None
     url: str | None = None
     source: str | None = None
     language: str | None = None
+    # The pasted job description, stored verbatim.
     description: str | None = Field(default=None, sa_type=Text)
     posted_at: datetime | None = None
+
+
+class Posting(PostingBase, table=True):
+    id: int | None = Field(default=None, primary_key=True)
     created_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime = Field(default_factory=utcnow)
+
+    application: "Application" = Relationship(
+        back_populates="posting", cascade_delete=True, sa_relationship_kwargs={"uselist": False}
+    )
+
+
+class PostingCreate(PostingBase):
+    title: str = Field(min_length=1)
+    company: str = Field(min_length=1)
+
+    _strip = field_validator("title", "company", "location", "url", "source", "language", mode="before")(
+        _strip_or_none
+    )
+    _url = field_validator("url")(_check_url)
+
+
+class PostingUpdate(SQLModel):
+    title: str | None = Field(default=None, min_length=1)
+    company: str | None = Field(default=None, min_length=1)
+    location: str | None = None
+    url: str | None = None
+    source: str | None = None
+    language: str | None = None
+    description: str | None = None
+    posted_at: datetime | None = None
+
+    _strip = field_validator("title", "company", "location", "url", "source", "language", mode="before")(
+        _strip_or_none
+    )
+    _url = field_validator("url")(_check_url)
+    _required = field_validator("title", "company")(_not_null)
+
+
+class PostingRead(PostingBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+    application_id: int | None = None
+    application_status: ApplicationStatus | None = None
+
+
+class PostingSummary(SQLModel):
+    id: int
+    title: str
+    company: str
 
 
 class Audit(SQLModel, table=True):
@@ -144,7 +223,13 @@ class Audit(SQLModel, table=True):
     created_at: datetime = Field(default_factory=utcnow)
 
 
+# --- Applications ----------------------------------------------------------
+
+
 class Application(SQLModel, table=True):
+    # One application per posting.
+    __table_args__ = (UniqueConstraint("posting_id", name="uq_application_posting_id"),)
+
     id: int | None = Field(default=None, primary_key=True)
     posting_id: int = Field(foreign_key="posting.id", index=True)
     status: ApplicationStatus = Field(
@@ -154,6 +239,64 @@ class Application(SQLModel, table=True):
     notes: str | None = Field(default=None, sa_type=Text)
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)
+
+    posting: Posting = Relationship(back_populates="application")
+    events: list["ApplicationEvent"] = Relationship(
+        back_populates="application",
+        cascade_delete=True,
+        sa_relationship_kwargs={"order_by": "ApplicationEvent.id"},
+    )
+    tasks: list["Task"] = Relationship(back_populates="application", cascade_delete=True)
+
+
+class ApplicationEvent(SQLModel, table=True):
+    """Append-only status history. One row per status change, including creation."""
+
+    __tablename__ = "application_event"
+
+    id: int | None = Field(default=None, primary_key=True)
+    application_id: int = Field(foreign_key="application.id", index=True, ondelete="CASCADE")
+    from_status: ApplicationStatus | None = Field(
+        default=None, sa_type=enum_type(ApplicationStatus, "ck_application_event_from_status")
+    )
+    to_status: ApplicationStatus = Field(
+        sa_type=enum_type(ApplicationStatus, "ck_application_event_to_status")
+    )
+    created_at: datetime = Field(default_factory=utcnow)
+
+    application: Application = Relationship(back_populates="events")
+
+
+class ApplicationCreate(SQLModel):
+    posting_id: int
+    status: ApplicationStatus = ApplicationStatus.DRAFT
+    applied_at: datetime | None = None
+    notes: str | None = None
+
+
+class ApplicationUpdate(SQLModel):
+    status: ApplicationStatus | None = None
+    applied_at: datetime | None = None
+    notes: str | None = None
+
+
+class ApplicationEventRead(SQLModel):
+    id: int
+    from_status: ApplicationStatus | None
+    to_status: ApplicationStatus
+    created_at: datetime
+
+
+class ApplicationRead(SQLModel):
+    id: int
+    posting_id: int
+    status: ApplicationStatus
+    applied_at: datetime | None
+    notes: str | None
+    created_at: datetime
+    updated_at: datetime
+    posting: PostingSummary
+    open_tasks: int = 0
 
 
 class Document(SQLModel, table=True):
@@ -180,13 +323,46 @@ class ProviderConfig(SQLModel, table=True):
     created_at: datetime = Field(default_factory=utcnow)
 
 
-class Task(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
+# --- Tasks -----------------------------------------------------------------
+
+
+class TaskBase(SQLModel):
     title: str
     status: TaskStatus = Field(default=TaskStatus.TODO, sa_type=enum_type(TaskStatus))
     due_at: datetime | None = None
     application_id: int | None = Field(default=None, foreign_key="application.id", index=True)
+
+
+class Task(TaskBase, table=True):
+    id: int | None = Field(default=None, primary_key=True)
     created_at: datetime = Field(default_factory=utcnow)
+
+    application: Application | None = Relationship(back_populates="tasks")
+
+
+class TaskCreate(TaskBase):
+    title: str = Field(min_length=1)
+
+    _strip = field_validator("title", mode="before")(_strip_or_none)
+
+
+class TaskUpdate(SQLModel):
+    title: str | None = Field(default=None, min_length=1)
+    status: TaskStatus | None = None
+    due_at: datetime | None = None
+
+    _strip = field_validator("title", mode="before")(_strip_or_none)
+    _required = field_validator("title", "status")(_not_null)
+
+
+class TaskRead(TaskBase):
+    id: int
+    created_at: datetime
+
+
+class ApplicationDetail(ApplicationRead):
+    events: list[ApplicationEventRead]
+    tasks: list[TaskRead]
 
 
 # --- Integrity guards ------------------------------------------------------
@@ -217,3 +393,23 @@ def _guard_locked_fields(session: SASession, _ctx, _instances) -> None:
                     f"ProfileItem {obj.title!r} is in-progress in candidate_context.md "
                     "and cannot be marked completed here."
                 )
+
+
+@event.listens_for(SASession, "before_flush")
+def _record_application_history(session: SASession, _ctx, _instances) -> None:
+    """Every application status change, from any code path, lands in application_event."""
+    for obj in list(session.new):
+        if isinstance(obj, Application):
+            _on_status_change(obj, None)
+    for obj in list(session.dirty):
+        if isinstance(obj, Application):
+            hist = inspect(obj).attrs.status.history
+            if hist.has_changes() and hist.deleted and hist.deleted[0] != obj.status:
+                _on_status_change(obj, hist.deleted[0])
+                obj.updated_at = utcnow()
+
+
+def _on_status_change(app: Application, previous: ApplicationStatus | None) -> None:
+    app.events.append(ApplicationEvent(from_status=previous, to_status=app.status))
+    if app.status != ApplicationStatus.DRAFT and app.applied_at is None:
+        app.applied_at = utcnow()

@@ -1,14 +1,10 @@
-from typing import Annotated
-
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from sqlmodel import Session, select
 
-from app.db import get_session
+from app.api.deps import SessionDep
 from app.models import ItemType, Profile, ProfileItem, ProfileItemRead, ProfileRead
 
 router = APIRouter(prefix="/profile", tags=["profile"])
-
-SessionDep = Annotated[Session, Depends(get_session)]
 
 
 def _get_profile(session: Session) -> Profile:
