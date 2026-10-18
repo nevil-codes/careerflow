@@ -16,9 +16,10 @@ Apply at https://jobs.acme-robotics.example/42
 """
 
 GOOD = {
-    "title": "Senior Backend Engineer (m/w/d)",
+    "title_original": "Senior Backend Engineer (m/w/d)",
+    "title_en": "Senior Backend Engineer (m/w/d)",
     "company": "Acme Robotics GmbH",
-    "location": "Munich, Germany",
+    "location_en": "Munich, Germany",
     "language": "english",
     "url": "https://jobs.acme-robotics.example/42",
 }
@@ -43,7 +44,8 @@ def test_paste_extracts_and_saves(client, session, monkeypatch, active_provider)
 
     assert res.status_code == 201, res.text
     body = res.json()
-    assert body["title"] == "Senior Backend Engineer (m/w/d)"
+    assert body["title"] == "Senior Backend Engineer"  # gender tag dropped
+    assert body["title_original"] is None  # English posting: nothing to keep
     assert body["company"] == "Acme Robotics GmbH"
     assert body["location"] == "Munich, Germany"
     assert body["language"] == "English"
@@ -75,7 +77,7 @@ def test_made_up_url_is_rejected(client, monkeypatch, active_provider):
 
 
 def test_title_match_ignores_case_and_whitespace(client, monkeypatch, active_provider):
-    use_fake(monkeypatch, json.dumps(GOOD | {"title": "senior   backend engineer"}))
+    use_fake(monkeypatch, json.dumps(GOOD | {"title_original": "senior   backend engineer"}))
     assert client.post("/postings/from-text", json={"description": JD}).status_code == 201
 
 
@@ -118,9 +120,10 @@ unter karriere.beispiel.example/jobs/42 und werde Teil von unserem Team."""
 
 def test_scheme_added_to_bare_url_and_language_detected(client, monkeypatch, active_provider):
     reply = {
-        "title": "Werkstudent (m/w/d) Data Engineering",
+        "title_original": "Werkstudent (m/w/d) Data Engineering",
+        "title_en": "Working Student Data Engineering",
         "company": "Beispiel GmbH",
-        "location": "Köln",
+        "location_en": "Cologne, Germany",
         "language": None,
         "url": "karriere.beispiel.example/jobs/42",
     }
@@ -144,3 +147,76 @@ def test_detect_language(text, expected):
     from app.llm.extract_posting import detect_language
 
     assert detect_language(text) == expected
+
+
+def test_german_posting_is_stored_in_english(client, monkeypatch, active_provider):
+    reply = {
+        "title_original": "Werkstudent (m/w/d) Data Engineering",
+        "title_en": "Working Student Data Engineering",
+        "company": "Beispiel GmbH",
+        "location_en": "Cologne, Germany",
+        "language": "German",
+        "url": None,
+    }
+    use_fake(monkeypatch, json.dumps(reply))
+
+    body = client.post("/postings/from-text", json={"description": GERMAN_JD}).json()
+
+    assert body["title"] == "Working Student Data Engineering"
+    assert body["title_original"] == "Werkstudent (m/w/d) Data Engineering"
+    assert body["company"] == "Beispiel GmbH"
+    assert body["location"] == "Cologne, Germany"
+    assert body["description"] == GERMAN_JD
+    found = client.get("/postings", params={"q": "werkstudent"}).json()
+    assert [p["id"] for p in found] == [body["id"]]
+
+
+def test_invented_original_title_is_rejected(client, monkeypatch, active_provider):
+    bad = {
+        "title_original": "Working Student Data Engineering",  # English, not in the German text
+        "title_en": "Working Student Data Engineering",
+        "company": "Beispiel GmbH",
+    }
+    fake = use_fake(monkeypatch, json.dumps(bad), json.dumps(bad | {"title_original": "Werkstudent (m/w/d) Data Engineering"}))
+
+    body = client.post("/postings/from-text", json={"description": GERMAN_JD}).json()
+
+    assert body["title_original"] == "Werkstudent (m/w/d) Data Engineering"
+    assert "does not appear in the posting text" in fake.calls[1][0][-1]["content"]
+
+
+@pytest.mark.parametrize("placeholder", [":null", "null", "N/A", " unknown ", '"none"', ""])
+def test_placeholder_strings_count_as_missing(placeholder):
+    from app.llm.extract_posting import ExtractedPosting
+
+    value = ExtractedPosting.model_validate(
+        GOOD | {"location_en": placeholder, "url": placeholder}, context={"source": JD}
+    )
+    assert value.location_en is None
+    assert value.url is None
+
+
+def test_placeholder_title_gets_required_feedback_not_null_hint(client, monkeypatch, active_provider):
+    fake = use_fake(monkeypatch, json.dumps(GOOD | {"title_original": ":null"}), json.dumps(GOOD))
+
+    assert client.post("/postings/from-text", json={"description": JD}).status_code == 201
+    feedback = fake.calls[1][0][-1]["content"]
+    assert "title_original" in feedback
+    assert "use null" not in feedback
+
+
+@pytest.mark.parametrize(
+    ("title_en", "expected"),
+    [
+        ("Working Student (m/w/d) Data Engineering", "Working Student Data Engineering"),
+        ("Backend Engineer (m/f/d)", "Backend Engineer"),
+        ("Data Scientist (w/m/d)", "Data Scientist"),
+        ("ML Engineer (all genders)", "ML Engineer"),
+        ("Product Manager (Payments)", "Product Manager (Payments)"),
+    ],
+)
+def test_gender_tags_removed_from_english_title(title_en, expected):
+    from app.llm.extract_posting import ExtractedPosting
+
+    posting = ExtractedPosting(title_original="x", title_en=title_en, company="y")
+    assert posting.to_posting_fields()["title"] == expected

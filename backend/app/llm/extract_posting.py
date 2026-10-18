@@ -15,21 +15,37 @@ def _normalize(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip().casefold()
 
 
+# German-style gender tags: (m/w/d), (w/m/d), (m/f/d), (all genders), (gn), ...
+_GENDER_TAG = re.compile(r"\s*\((?:[mwfdx]\s*/\s*){1,3}[mwfdx]\*?\)|\s*\((?:all genders|gn\*?|m/w/div\.?)\)", re.I)
+
+# Models sometimes emit a placeholder string instead of JSON null, e.g. ":null" or "N/A".
+_NULLISH = re.compile(r"^[\s:\"'`.-]*(null|none|n/?a|unknown|not stated|not specified)?[\s:\"'`.-]*$", re.I)
+
+
 class ExtractedPosting(BaseModel):
-    title: str = Field(description="The job title exactly as written in the posting.")
-    company: str = Field(description="The hiring company's name exactly as written in the posting.")
-    location: str | None = Field(default=None, description="City/country or 'Remote', if stated.")
+    title_original: str = Field(description="The job title exactly as written in the posting, in its language.")
+    title_en: str = Field(
+        description="The job title in English. Translate it if the posting is not in English, and drop "
+        "gender tags such as (m/w/d). If the posting is in English, repeat the original title."
+    )
+    company: str = Field(description="The hiring company's name exactly as written. Never translate it.")
+    location_en: str | None = Field(
+        default=None,
+        description="City and country in English (e.g. 'Cologne, Germany', not 'Köln'), or 'Remote', if stated.",
+    )
     language: str | None = Field(
-        default=None, description="Language the posting is written in, in English, e.g. 'English' or 'German'."
+        default=None, description="Language the posting is written in, named in English, e.g. 'German'."
     )
     url: str | None = Field(default=None, description="Application or posting URL, only if it appears in the text.")
 
-    @field_validator("title", "company", "location", "language", "url", mode="before")
+    @field_validator("title_original", "title_en", "company", "location_en", "language", "url", mode="before")
     @classmethod
     def _blank_to_none(cls, value: object) -> object:
-        return value.strip() or None if isinstance(value, str) else value
+        if isinstance(value, str) and _NULLISH.match(value):
+            return None
+        return value.strip() if isinstance(value, str) else value
 
-    @field_validator("title", "company", "url")
+    @field_validator("title_original", "company", "url")
     @classmethod
     def _must_appear_in_source(cls, value: str | None, info: ValidationInfo) -> str | None:
         """Guards against made-up values: they must be copied from the pasted text."""
@@ -37,7 +53,8 @@ class ExtractedPosting(BaseModel):
         if value is None or source is None:
             return value
         if _normalize(value) not in _normalize(source):
-            raise ValueError(f"{value!r} does not appear in the posting text; copy it exactly or use null")
+            fix = "use null" if info.field_name == "url" else "copy it exactly as written there"
+            raise ValueError(f"{value!r} does not appear in the posting text; {fix}")
         return value
 
     @field_validator("language")
@@ -45,11 +62,26 @@ class ExtractedPosting(BaseModel):
     def _capitalize(cls, value: str | None) -> str | None:
         return value.capitalize() if value else value
 
+    def to_posting_fields(self) -> dict:
+        """English values go in the main fields; the original title is kept only if it differs."""
+        title_en = _GENDER_TAG.sub("", self.title_en).strip() or self.title_en
+        # An English posting whose title differs only by a gender tag needs no "original".
+        same = _normalize(_GENDER_TAG.sub("", self.title_original)) == _normalize(title_en)
+        return {
+            "title": title_en,
+            "title_original": None if same else self.title_original,
+            "company": self.company,
+            "location": self.location_en,
+            "language": self.language,
+            "url": self.url,
+        }
+
 
 SYSTEM_PROMPT = """\
 You extract structured data from a job posting. Reply only with JSON matching the schema.
-Copy the job title and company name exactly as they appear in the text. Do not translate,
-shorten or invent anything. Use null for anything the posting does not state."""
+All fields are in English, translated if needed, except title_original and company, which
+are copied exactly as they appear in the text. Do not invent anything. Use null for
+anything the posting does not state."""
 
 
 def extract_posting(provider: Provider, text: str) -> ExtractedPosting:

@@ -153,7 +153,10 @@ def _check_url(value: str | None) -> str | None:
 
 
 class PostingBase(SQLModel):
+    # Fields are kept in English; for non-English postings the title as written is in
+    # title_original (company names are never translated).
     title: str
+    title_original: str | None = None
     company: str
     location: str | None = None
     url: str | None = None
@@ -178,14 +181,15 @@ class PostingCreate(PostingBase):
     title: str = Field(min_length=1)
     company: str = Field(min_length=1)
 
-    _strip = field_validator("title", "company", "location", "url", "source", "language", mode="before")(
-        _strip_or_none
-    )
+    _strip = field_validator(
+        "title", "title_original", "company", "location", "url", "source", "language", mode="before"
+    )(_strip_or_none)
     _url = field_validator("url")(_check_url)
 
 
 class PostingUpdate(SQLModel):
     title: str | None = Field(default=None, min_length=1)
+    title_original: str | None = None
     company: str | None = Field(default=None, min_length=1)
     location: str | None = None
     url: str | None = None
@@ -194,9 +198,9 @@ class PostingUpdate(SQLModel):
     description: str | None = None
     posted_at: datetime | None = None
 
-    _strip = field_validator("title", "company", "location", "url", "source", "language", mode="before")(
-        _strip_or_none
-    )
+    _strip = field_validator(
+        "title", "title_original", "company", "location", "url", "source", "language", mode="before"
+    )(_strip_or_none)
     _url = field_validator("url")(_check_url)
     _required = field_validator("title", "company")(_not_null)
 
@@ -328,7 +332,7 @@ class Document(SQLModel, table=True):
 
 # Provider kinds the app can talk to. Cloud providers come later; their keys will be
 # read from the environment / OS keychain, never stored in this table.
-ProviderKind = Literal["ollama"]
+ProviderKind = Literal["ollama", "anthropic"]
 
 
 class ProviderConfigBase(SQLModel):

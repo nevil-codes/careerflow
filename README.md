@@ -69,7 +69,21 @@ npm run dev
 
 Open http://localhost:5173. Pages: Postings, Applications (board), Tasks, Profile, Settings. Vite proxies `/api/*` to the backend (override with `API_PROXY_TARGET`).
 
-### 4. Local LLM (needed to add postings by paste)
+### 4. AI model (needed to add postings by paste)
+
+Pick one, or set up both and switch in **Settings**: a local model (free, private, slower, less reliable) or Claude through the Anthropic API (fast, paid per request).
+
+**Claude:** create an API key at [console.anthropic.com](https://console.anthropic.com) (API credits are billed there, separately from a claude.ai subscription). Start the backend with the key in its environment. Never put it in a file that's committed:
+
+```bash
+cd backend
+export ANTHROPIC_API_KEY=sk-ant-...   # in the same terminal, before starting uvicorn
+uv run uvicorn app.main:app --reload
+```
+
+Then in **Settings** → **Add provider**, choose **Claude (Anthropic API)**, pick a model (defaults to `claude-opus-5-5`) and click **Test provider**. If Claude declines a request on safety grounds, the API automatically retries it on a fallback model (`fallbacks: "default"`).
+
+**Local (Ollama):**
 
 ```bash
 # install from https://ollama.com, then:
@@ -79,7 +93,7 @@ ollama pull qwen3:8b         # or any model; gpt-oss:20b also works
 
 In the app, open **Settings**, add the provider (defaults to `http://localhost:11434`), pick a model, and click **Test provider**. It sends a small request that must come back as JSON matching a schema. Only one provider is active at a time.
 
-**Adding a posting:** on **Postings**, click **New posting** and paste the whole job description. The active model extracts the title, company, location, language and URL, and the text is saved unchanged. The title, company and URL must appear in the pasted text, so a made-up value is rejected and the model is asked again. If extraction fails, nothing is saved and you can enter the details by hand instead. **Edit** on a posting always works without a model.
+**Adding a posting:** on **Postings**, click **New posting** and paste the whole job description. The active model extracts the title, company, location, language and URL, and the text is saved unchanged. Everything is stored in English: a German title is translated (gender tags like `(m/w/d)` dropped) with the original kept as "Original title", and locations are in English (`Köln` → `Cologne, Germany`). Company names are never translated. The title, company and URL must appear in the pasted text, so a made-up value is rejected and the model is asked again. If extraction fails, nothing is saved and you can enter the details by hand instead. **Edit** on a posting always works without a model.
 
 ### Docker (alternative)
 

@@ -22,7 +22,7 @@ def test_create_defaults_to_ollama_url(client):
     assert config["base_url"] == OLLAMA_URL
     assert config["enabled"] is False
     assert client.get("/providers").json() == [config]
-    assert client.get("/providers/defaults").json() == {"base_urls": {"ollama": OLLAMA_URL}}
+    assert client.get("/providers/defaults").json() == {"base_urls": {"ollama": OLLAMA_URL, "anthropic": None}}
 
 
 @pytest.mark.parametrize(
@@ -122,3 +122,10 @@ def test_models_endpoint(client, monkeypatch):
 def test_missing_provider_is_404(client):
     assert client.post("/providers/9/test").status_code == 404
     assert client.get("/providers/9/models").status_code == 404
+
+
+def test_create_anthropic_provider_has_no_url(client):
+    config = create(client, name="Claude", provider="anthropic", model="claude-opus-5-5")
+    assert config["provider"] == "anthropic"
+    assert config["base_url"] is None
+    assert client.get("/providers/defaults").json()["base_urls"]["anthropic"] is None
