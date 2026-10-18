@@ -1,0 +1,34 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      CAREERFLOW_CONTEXT_FILE: /context/candidate_context.md
+    volumes:
+      - ./backend:/app                 # live code + SQLite DB in backend/data/
+      - ./:/context:ro                 # read-only access to candidate_context.md
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+    environment:
+      API_PROXY_TARGET: http://backend:8000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules              # keep the image's node_modules
+    depends_on:
+      - backend
+
+  # Local LLMs arrive in a later phase. Uncomment to run Ollama alongside.
+  # ollama:
+  #   image: ollama/ollama
+  #   ports:
+  #     - "11434:11434"
+  #   volumes:
+  #     - ollama:/root/.ollama
+
+# volumes:
+#   ollama:
