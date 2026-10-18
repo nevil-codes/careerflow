@@ -1,0 +1,15 @@
+# Personal data: never commit your real profile.
+candidate_context.md
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+backend/data/*.db*
+
+# Node
+node_modules/
+frontend/dist/
+
+.DS_Store
