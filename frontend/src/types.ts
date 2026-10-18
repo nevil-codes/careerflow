@@ -87,3 +87,23 @@ export interface ApplicationDetail extends Application {
   events: ApplicationEvent[];
   tasks: Task[];
 }
+
+export interface ProviderConfig {
+  id: number;
+  name: string;
+  provider: "ollama";
+  model: string | null;
+  base_url: string | null;
+  enabled: boolean;
+  created_at: string;
+}
+
+export interface ProviderTestResult {
+  ok: boolean;
+  model: string | null;
+  latency_ms: number;
+  attempts: number;
+  answer: { greeting: string; sum: number } | null;
+  correct: boolean | null;
+  error: string | null;
+}

@@ -7,6 +7,7 @@ are the API response schemas.
 
 from datetime import UTC, datetime
 from enum import StrEnum
+from typing import Literal
 
 from pydantic import field_validator
 from sqlalchemy import JSON, Text, UniqueConstraint, event, inspect
@@ -309,18 +310,56 @@ class Document(SQLModel, table=True):
     created_at: datetime = Field(default_factory=utcnow)
 
 
-class ProviderConfig(SQLModel, table=True):
+# --- LLM providers -----------------------------------------------------------
+
+# Provider kinds the app can talk to. Cloud providers come later; their keys will be
+# read from the environment / OS keychain, never stored in this table.
+ProviderKind = Literal["ollama"]
+
+
+class ProviderConfigBase(SQLModel):
+    name: str = Field(unique=True)
+    provider: str
+    model: str | None = None
+    base_url: str | None = None
+    # At most one config is enabled; it is the provider every LLM feature uses.
+    enabled: bool = False
+
+
+class ProviderConfig(ProviderConfigBase, table=True):
     """LLM provider settings. Deliberately has no secret/API-key column."""
 
     __tablename__ = "provider_config"
 
     id: int | None = Field(default=None, primary_key=True)
-    name: str = Field(unique=True)
-    provider: str
+    created_at: datetime = Field(default_factory=utcnow)
+
+
+class ProviderConfigCreate(SQLModel):
+    name: str = Field(min_length=1)
+    provider: ProviderKind = "ollama"
     model: str | None = None
     base_url: str | None = None
     enabled: bool = False
-    created_at: datetime = Field(default_factory=utcnow)
+
+    _strip = field_validator("name", "model", "base_url", mode="before")(_strip_or_none)
+    _url = field_validator("base_url")(_check_url)
+
+
+class ProviderConfigUpdate(SQLModel):
+    name: str | None = Field(default=None, min_length=1)
+    model: str | None = None
+    base_url: str | None = None
+    enabled: bool | None = None
+
+    _strip = field_validator("name", "model", "base_url", mode="before")(_strip_or_none)
+    _url = field_validator("base_url")(_check_url)
+    _required = field_validator("name", "base_url", "enabled")(_not_null)
+
+
+class ProviderConfigRead(ProviderConfigBase):
+    id: int
+    created_at: datetime
 
 
 # --- Tasks -----------------------------------------------------------------
@@ -378,21 +417,36 @@ class LockedFieldError(RuntimeError):
 
 @event.listens_for(SASession, "before_flush")
 def _guard_locked_fields(session: SASession, _ctx, _instances) -> None:
+    """The profile tables are read-only except to the seed (candidate_context.md).
+
+    This covers every writer, including future LLM features: they can read the
+    profile but any insert, update or delete outside the seed fails the flush.
+    """
     if session.info.get(SOURCE_SYNC):
         return
     for obj in session.dirty:
+        if not session.is_modified(obj):
+            continue
         if isinstance(obj, Profile):
             if inspect(obj).attrs.german_level.history.has_changes():
                 raise LockedFieldError(
                     "Profile.german_level is locked to candidate_context.md; re-run the seed instead."
                 )
-        elif isinstance(obj, ProfileItem):
+            raise LockedFieldError(_READ_ONLY)
+        if isinstance(obj, ProfileItem):
             hist = inspect(obj).attrs.status.history
             if ItemStatus.IN_PROGRESS in hist.deleted and obj.status == ItemStatus.COMPLETED:
                 raise LockedFieldError(
                     f"ProfileItem {obj.title!r} is in-progress in candidate_context.md "
                     "and cannot be marked completed here."
                 )
+            raise LockedFieldError(_READ_ONLY)
+    for obj in (*session.new, *session.deleted):
+        if isinstance(obj, (Profile, ProfileItem)):
+            raise LockedFieldError(_READ_ONLY)
+
+
+_READ_ONLY = "The profile is read-only here; edit candidate_context.md and re-run the seed."
 
 
 @event.listens_for(SASession, "before_flush")

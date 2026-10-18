@@ -2,6 +2,7 @@ import BoardPage from "./pages/BoardPage";
 import PostingDetailPage from "./pages/PostingDetailPage";
 import PostingsPage from "./pages/PostingsPage";
 import ProfilePage from "./pages/ProfilePage";
+import SettingsPage from "./pages/SettingsPage";
 import TasksPage from "./pages/TasksPage";
 import { href, useRoute } from "./router";
 
@@ -10,6 +11,7 @@ const NAV = [
   { path: "/board", label: "Applications" },
   { path: "/tasks", label: "Tasks" },
   { path: "/profile", label: "Profile" },
+  { path: "/settings", label: "Settings" },
 ];
 
 function Page({ route }: { route: string }) {
@@ -24,6 +26,8 @@ function Page({ route }: { route: string }) {
       return <TasksPage />;
     case "/profile":
       return <ProfilePage />;
+    case "/settings":
+      return <SettingsPage />;
     default:
       return <p className="text-slate-500">Page not found.</p>;
   }
