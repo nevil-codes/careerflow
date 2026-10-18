@@ -7,6 +7,7 @@ import type {
   Profile,
   ProfileItem,
   ProviderConfig,
+  ProviderKind,
   ProviderTestResult,
   Task,
   TaskStatus,
@@ -65,8 +66,14 @@ export const deleteTask = (id: number) => request<void>("DELETE", `/tasks/${id}`
 
 export const listProviders = () => request<ProviderConfig[]>("GET", "/providers");
 export const getProviderDefaults = () =>
-  request<{ base_urls: Record<string, string> }>("GET", "/providers/defaults");
-export const createProvider = (data: { name: string; base_url?: string | null; enabled?: boolean }) =>
+  request<{ base_urls: Record<ProviderKind, string | null> }>("GET", "/providers/defaults");
+export const createProvider = (data: {
+  name: string;
+  provider: ProviderKind;
+  model?: string | null;
+  base_url?: string | null;
+  enabled?: boolean;
+}) =>
   request<ProviderConfig>("POST", "/providers", data);
 export const updateProvider = (
   id: number,

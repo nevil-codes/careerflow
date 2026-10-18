@@ -17,7 +17,7 @@ def list_providers(session: SessionDep) -> list[ProviderConfig]:
 
 
 @router.get("/defaults")
-def provider_defaults() -> dict[str, dict[str, str]]:
+def provider_defaults() -> dict[str, dict[str, str | None]]:
     """Default base URL per provider kind, for pre-filling forms."""
     return {"base_urls": DEFAULT_BASE_URLS}
 

@@ -39,6 +39,7 @@ export interface ProfileItem {
 
 export interface PostingInput {
   title: string;
+  title_original?: string | null;
   company: string;
   location?: string | null;
   url?: string | null;
@@ -88,10 +89,17 @@ export interface ApplicationDetail extends Application {
   tasks: Task[];
 }
 
+export type ProviderKind = "ollama" | "anthropic";
+
+export const PROVIDER_LABELS: Record<ProviderKind, string> = {
+  ollama: "Ollama (local)",
+  anthropic: "Claude (Anthropic API)",
+};
+
 export interface ProviderConfig {
   id: number;
   name: string;
-  provider: "ollama";
+  provider: ProviderKind;
   model: string | null;
   base_url: string | null;
   enabled: boolean;

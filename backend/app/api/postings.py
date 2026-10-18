@@ -26,7 +26,11 @@ def list_postings(session: SessionDep, q: str | None = None) -> list[PostingRead
     query = select(Posting).order_by(col(Posting.created_at).desc(), col(Posting.id).desc())
     if q:
         pattern = f"%{q}%"
-        query = query.where(col(Posting.title).ilike(pattern) | col(Posting.company).ilike(pattern))
+        query = query.where(
+            col(Posting.title).ilike(pattern)
+            | col(Posting.title_original).ilike(pattern)
+            | col(Posting.company).ilike(pattern)
+        )
     return [to_read(p) for p in session.exec(query)]
 
 
@@ -52,9 +56,7 @@ def create_posting_from_text(data: PostingFromText, session: SessionDep) -> Post
     except ProviderError as exc:
         raise HTTPException(502, f"Could not read the posting: {exc}") from exc
 
-    posting = Posting.model_validate(
-        extracted.model_dump() | {"description": data.description, "source": "pasted"}
-    )
+    posting = Posting.model_validate(extracted.to_posting_fields() | {"description": data.description, "source": "pasted"})
     session.add(posting)
     session.commit()
     session.refresh(posting)

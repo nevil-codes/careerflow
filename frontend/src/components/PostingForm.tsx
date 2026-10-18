@@ -3,7 +3,15 @@ import { useState, type FormEvent } from "react";
 import type { PostingInput } from "../types";
 import { Button, ErrorBox, Label, inputClass } from "./ui";
 
-const EMPTY: PostingInput = { title: "", company: "", location: "", url: "", language: "", description: "" };
+const EMPTY: PostingInput = {
+  title: "",
+  title_original: "",
+  company: "",
+  location: "",
+  url: "",
+  language: "",
+  description: "",
+};
 
 export default function PostingForm({
   initial,
@@ -39,8 +47,11 @@ export default function PostingForm({
     <form onSubmit={submit} className="space-y-3">
       {error && <ErrorBox message={error} />}
       <div className="grid gap-3 sm:grid-cols-2">
-        <Label text="Job title *">
+        <Label text="Job title (English) *">
           <input className={inputClass} value={form.title} onChange={set("title")} required />
+        </Label>
+        <Label text="Original title (if not English)">
+          <input className={inputClass} value={form.title_original ?? ""} onChange={set("title_original")} />
         </Label>
         <Label text="Company *">
           <input className={inputClass} value={form.company} onChange={set("company")} required />

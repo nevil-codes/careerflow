@@ -65,6 +65,11 @@ export default function PostingDetailPage({ id }: { id: number }) {
         <header className="mt-3 mb-6 flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h1 className="text-2xl font-bold">{posting.title}</h1>
+            {posting.title_original && (
+              <p className="text-sm text-slate-500" lang={posting.language === "German" ? "de" : undefined}>
+                Original: {posting.title_original}
+              </p>
+            )}
             <p className="text-slate-600 dark:text-slate-400">
               {[posting.company, posting.location, posting.language].filter(Boolean).join(" · ")}
             </p>
